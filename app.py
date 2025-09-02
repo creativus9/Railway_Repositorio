@@ -149,9 +149,26 @@ def webhook_shopee_new_order():
     if not db:
         return jsonify(message="Erro interno: Serviço de banco de dados indisponível."), 503
 
-    orders_data = request.json
-    if not isinstance(orders_data, list):
-        return jsonify(message="Payload inválido. Esperada uma lista de pedidos."), 400
+    # CORREÇÃO: Lógica mais robusta para lidar com o payload do n8n
+    try:
+        # Tenta obter o JSON. request.json só funciona se o mimetype for application/json.
+        data = request.get_json()
+        if not data:
+             # Se falhar, tenta forçar a leitura do corpo da requisição e converter para JSON.
+             # Isso ajuda quando o n8n envia os dados, mas não o header de mimetype correto.
+            data = json.loads(request.data)
+    except Exception as e:
+        print(f"ERRO: Falha ao decodificar o JSON do payload. Erro: {e}")
+        print(f"Dados recebidos (brutos): {request.data}")
+        return jsonify(message="Erro ao decodificar o JSON. Verifique o formato enviado pelo n8n."), 400
+
+    # Agora que temos 'data', verificamos se é uma lista
+    if isinstance(data, list):
+        orders_data = data
+    else:
+        # Se não for uma lista (ex: o n8n enviou apenas o objeto),
+        # nós a colocamos dentro de uma lista para padronizar o processamento.
+        orders_data = [data]
 
     success_count = 0
     errors = []
