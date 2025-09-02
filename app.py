@@ -27,12 +27,12 @@ try:
     cred = credentials.Certificate(creds_dict)
     firebase_admin.initialize_app(cred)
     
-    # CORREÇÃO: Removido o argumento 'database_id' para garantir a compatibilidade.
-    db = firestore.client()
-    print("Conexão com Firestore estabelecida com sucesso!")
+    # CORREÇÃO: Conecta-se explicitamente ao banco de dados nomeado.
+    db = firestore.client(database='shopee-pedidos-creativusfabrica')
+    print("Conexão com Firestore 'shopee-pedidos-creativusfabrica' estabelecida com sucesso!")
 
 except Exception as e:
-    print(f"ERRO CRÍTICO: Não foi possível conectar ao Firestore. Verifique as credenciais. Erro: {e}")
+    print(f"ERRO CRÍTICO: Não foi possível conectar ao Firestore. Verifique as credenciais e o nome do banco de dados. Erro: {e}")
     db = None
 
 # --- MAPEAMENTOS INTERNOS ---
