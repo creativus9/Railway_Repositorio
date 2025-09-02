@@ -7,7 +7,9 @@ import json # Adicionado para processar o JSON da variável de ambiente
 from datetime import datetime
 from flask import Flask, request, jsonify
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials
+# CORREÇÃO: Importa diretamente o cliente do Google Cloud Firestore
+from google.cloud import firestore
 
 # --- INICIALIZAÇÃO DO FLASK ---
 app = Flask(__name__)
@@ -25,10 +27,17 @@ try:
     
     # 3. Inicializa o Firebase com as credenciais do dicionário.
     cred = credentials.Certificate(creds_dict)
-    firebase_admin.initialize_app(cred)
+    # A inicialização do app é necessária para a autenticação, mas não para o cliente do DB.
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
     
-    # CORREÇÃO: Conecta-se explicitamente ao banco de dados nomeado.
-    db = firestore.client(database='shopee-pedidos-creativusfabrica')
+    # CORREÇÃO: Cria o cliente do Firestore usando a biblioteca google-cloud-firestore diretamente,
+    # que permite especificar o nome do banco de dados de forma explícita e robusta.
+    db = firestore.Client(
+        project=creds_dict['project_id'],
+        credentials=cred,
+        database='shopee-pedidos-creativusfabrica'
+    )
     print("Conexão com Firestore 'shopee-pedidos-creativusfabrica' estabelecida com sucesso!")
 
 except Exception as e:
