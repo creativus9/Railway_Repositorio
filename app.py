@@ -10,6 +10,8 @@ import firebase_admin
 from firebase_admin import credentials
 # CORREÇÃO: Importa diretamente o cliente do Google Cloud Firestore
 from google.cloud import firestore
+# CORREÇÃO: Importa a biblioteca correta para criar as credenciais
+from google.oauth2 import service_account
 
 # --- INICIALIZAÇÃO DO FLASK ---
 app = Flask(__name__)
@@ -25,17 +27,18 @@ try:
     # 2. Converte a string JSON em um dicionário Python.
     creds_dict = json.loads(creds_json_str)
     
-    # 3. Inicializa o Firebase com as credenciais do dicionário.
-    cred = credentials.Certificate(creds_dict)
-    # A inicialização do app é necessária para a autenticação, mas não para o cliente do DB.
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
+    # 3. CORREÇÃO: Cria o objeto de credenciais usando a biblioteca 'google.oauth2', que é a esperada pelo firestore.Client.
+    google_creds = service_account.Credentials.from_service_account_info(creds_dict)
     
-    # CORREÇÃO: Cria o cliente do Firestore usando a biblioteca google-cloud-firestore diretamente,
-    # que permite especificar o nome do banco de dados de forma explícita e robusta.
+    # A inicialização do app do firebase_admin ainda é útil para outros serviços (como Storage, Auth, etc).
+    if not firebase_admin._apps:
+        firebase_admin_cred = credentials.Certificate(creds_dict)
+        firebase_admin.initialize_app(firebase_admin_cred)
+    
+    # 4. Cria o cliente do Firestore usando as credenciais no formato correto.
     db = firestore.Client(
         project=creds_dict['project_id'],
-        credentials=cred,
+        credentials=google_creds,
         database='shopee-pedidos-creativusfabrica'
     )
     print("Conexão com Firestore 'shopee-pedidos-creativusfabrica' estabelecida com sucesso!")
