@@ -27,8 +27,8 @@ try:
     cred = credentials.Certificate(creds_dict)
     firebase_admin.initialize_app(cred)
     
-    # Substitua pelo ID do seu banco de dados Firestore, se for diferente.
-    db = firestore.client(database_id='shopee-pedidos-creativusfabrica')
+    # CORREÇÃO: Removido o argumento 'database_id' para garantir a compatibilidade.
+    db = firestore.client()
     print("Conexão com Firestore estabelecida com sucesso!")
 
 except Exception as e:
