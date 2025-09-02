@@ -52,7 +52,7 @@ except Exception as e:
 rendimentoPlacas = {
     "2020": 50, "3015": 50, "4020": 25, "1515": 55, "3030": 24,
     "3010": 70, "5151": 10, "3013": 50, "4010": 50, "4015": 35,
-    "2508": 105, "3510": 60, "1414": 90
+    "2508": 105, "3510": 60, "1414": 90, "3918": 30
 }
 coresMap = {
     "DOU": "Dourado", "PRA": "Prata", "ROS": "Rose", "CRU": "Cru",
@@ -64,7 +64,8 @@ formatoMap = {
     "NUVE": "Nuvem", "PLAO": "Plaquinha Oval", "PLAR": "Plaquinha com bolinha redonda no começo",
     "URSI": "Ursinho", "PING": "Pingente", "BORB": "Borboleta",
     "BO3D": "Borboleta 3D", "PROT": "Passante retangular oval no topo",
-    "FLOP": "Flor Passante", "APCA": "Aplique Casamento", "MIPA": "Mini Palito"
+    "FLOP": "Flor Passante", "APCA": "Aplique Casamento", "MIPA": "Mini Palito",
+    "MASC": "Máscara Carnaval", "ARVC": "Arvórezinha"
 }
 furosMap = {
     "1FS": "1 furo Superior", "1FH": "1 Furo Lateral", "2FH": "2 Furos Lateral",
@@ -81,8 +82,18 @@ variacoesMap = {
     "1004P": "Feito a mão com coração vazado no meio", "1005P": "Feito com amor + novelo",
     "1006P": "Caderneta de Saúde", "1007P": "Feliz dia das Mães", "1008P": "Ramo de flor 1",
     "1009P": "Feito com amor", "1010P": "Feliz Páscoa", "1011P": "Gratidão modelo 2",
-    "1012P": "Fé", "1013P": "Coração", "0000P": "Sem gravação", "0000F": "Sem gravação"
+    "1012P": "Fé", "1013P": "Coração", "1014P": "Fé + Cruz", "1015P": "Ele Vive + Cruz",
+    "1016P": "Mãe + Coração", "1017P": "Seja Luz", "1018P": "Bíblia Sagrada",
+    "1019P": "Feliz Natal", "0000P": "Sem gravação", "0000F": "Sem gravação"
 }
+
+# NOVA FUNÇÃO: Converte um valor para float de forma segura
+def safe_float(value, default=0.0):
+    """Tenta converter um valor para float, retornando um padrão em caso de falha."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
 
 def process_webhook_order(order_data):
     """
@@ -131,9 +142,11 @@ def process_webhook_order(order_data):
             'tipoArte': variacao, 'sku': sku_final, 'motivoRetrabalho': '',
             'dataEntrega': ship_by_date_str, 'ecommerce': 'Shopee', 'contaEcommerce': 'Conta Padrão',
             'dataPedidoFeito': order_data.get("created_at"), 'cliente': order_data.get("cliente"),
-            'valorTotal': order_data.get("valor_total_pedido"),
-            'comissaoEcommerce': order_data.get("comissao_total_pedido"),
-            'frete': order_data.get("frete_pago_total"),
+            # ATUALIZAÇÃO: Usa a função safe_float para garantir que os valores são numéricos
+            'valorTotal': safe_float(order_data.get("valor_total_pedido")),
+            'comissaoEcommerce': safe_float(order_data.get("comissao_total_pedido")),
+            'taxaEcommerce': safe_float(order_data.get("taxa_servico_total_pedido")),
+            'frete': safe_float(order_data.get("frete_pago_total")),
         }
     except Exception as e:
         print(f"ERRO ao processar dados do pedido '{order_data.get('pedido')}': {e}")
