@@ -167,52 +167,82 @@ def save_order_to_firestore(order_data):
         print(f"ERRO ao salvar pedido '{order_data.get('id')}' no Firestore: {e}")
         return False
 
+# NOVA FUNÇÃO: Exclui um pedido do Firestore
+def delete_order_from_firestore(order_id):
+    """Exclui um pedido do Firestore com base no ID."""
+    if not db:
+        print("ERRO: Firestore não está conectado. Não é possível excluir o pedido.")
+        return False
+    try:
+        # Garante que o ID do documento é uma string
+        doc_ref = db.collection('pedidos_ativos').document(str(order_id))
+        doc_ref.delete()
+        print(f"Pedido '{order_id}' excluído com sucesso do Firestore devido ao cancelamento.")
+        return True
+    except Exception as e:
+        print(f"ERRO ao excluir pedido '{order_id}' do Firestore: {e}")
+        return False
+
 # --- ROTA DO WEBHOOK ---
 @app.route('/webhook/shopee/new-order', methods=['POST'])
 def webhook_shopee_new_order():
-    """Endpoint para receber novos pedidos processados pelo n8n."""
+    """Endpoint para receber e processar pedidos do n8n, incluindo cancelamentos."""
     if not db:
         return jsonify(message="Erro interno: Serviço de banco de dados indisponível."), 503
 
-    # CORREÇÃO: Lógica mais robusta para lidar com o payload do n8n
     try:
-        # Tenta obter o JSON. request.json só funciona se o mimetype for application/json.
         data = request.get_json()
         if not data:
-             # Se falhar, tenta forçar a leitura do corpo da requisição e converter para JSON.
-             # Isso ajuda quando o n8n envia os dados, mas não o header de mimetype correto.
             data = json.loads(request.data)
     except Exception as e:
         print(f"ERRO: Falha ao decodificar o JSON do payload. Erro: {e}")
         print(f"Dados recebidos (brutos): {request.data}")
         return jsonify(message="Erro ao decodificar o JSON. Verifique o formato enviado pelo n8n."), 400
 
-    # Agora que temos 'data', verificamos se é uma lista
-    if isinstance(data, list):
-        orders_data = data
-    else:
-        # Se não for uma lista (ex: o n8n enviou apenas o objeto),
-        # nós a colocamos dentro de uma lista para padronizar o processamento.
-        orders_data = [data]
+    orders_data = data if isinstance(data, list) else [data]
 
     success_count = 0
+    delete_count = 0
     errors = []
     
     for order_item in orders_data:
-        processed_order = process_webhook_order(order_item)
-        if processed_order:
-            if save_order_to_firestore(processed_order):
-                success_count += 1
+        status = order_item.get("status")
+        order_id = order_item.get("pedido", "ID_DESCONHECIDO")
+
+        # LÓGICA DE DECISÃO: Se o status for "CANCELLED", exclui o pedido.
+        if status == "CANCELLED":
+            if delete_order_from_firestore(order_id):
+                delete_count += 1
             else:
-                errors.append(f"Falha ao salvar no banco de dados o pedido: {order_item.get('pedido', 'N/A')}")
+                errors.append(f"Falha ao excluir o pedido cancelado: {order_id}")
+        # Caso contrário, processa e salva/atualiza como antes.
         else:
-            errors.append(f"Falha ao processar o item de pedido: {order_item.get('pedido', 'N/A')}")
+            processed_order = process_webhook_order(order_item)
+            if processed_order:
+                if save_order_to_firestore(processed_order):
+                    success_count += 1
+                else:
+                    errors.append(f"Falha ao salvar no banco de dados o pedido: {order_id}")
+            else:
+                errors.append(f"Falha ao processar o item de pedido: {order_id}")
+
+    # Monta uma mensagem de resposta mais clara
+    message_parts = []
+    if success_count > 0:
+        message_parts.append(f"{success_count} pedido(s) salvo(s)/atualizado(s)")
+    if delete_count > 0:
+        message_parts.append(f"{delete_count} pedido(s) excluído(s) por cancelamento")
+    
+    if not message_parts and not errors:
+        final_message = "Nenhuma ação realizada. Verifique o payload enviado."
+    else:
+        final_message = ", ".join(message_parts) + " com sucesso."
 
     if not errors:
-        return jsonify(message=f"{success_count} pedido(s) recebido(s) e salvo(s) com sucesso!"), 200
+        return jsonify(message=final_message), 200
     else:
         return jsonify(
-            message=f"{success_count} pedido(s) salvo(s) com sucesso, mas ocorreram erros.",
+            message=f"Operação concluída com erros. {final_message}",
             errors=errors
         ), 207
 
@@ -227,4 +257,5 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
+
 
