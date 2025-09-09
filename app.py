@@ -105,19 +105,24 @@ def calculate_fallback_delivery_date(creation_date_str):
         print("AVISO: 'created_at' não fornecido para cálculo de data fallback. Data de entrega ficará vazia.")
         return ""
 
+    # CORREÇÃO: Tenta múltiplos formatos de data para maior robustez.
     try:
-        # A API da Shopee pode retornar a data como timestamp (int) ou string ISO.
-        if isinstance(creation_date_str, (int, float)):
-            creation_date = datetime.fromtimestamp(creation_date_str)
-        else:
-            # Remove o 'Z' do final e adiciona timezone info para compatibilidade com fromisoformat
-            if creation_date_str.endswith('Z'):
-                creation_date_str = creation_date_str[:-1] + '+00:00'
-            creation_date = datetime.fromisoformat(creation_date_str)
-    except (ValueError, TypeError) as e:
-        print(f"AVISO: Não foi possível interpretar a data de criação '{creation_date_str}'. Usando data atual como base. Erro: {e}")
-        # Se o parsing falhar, usa a data/hora atual como base para o cálculo.
-        creation_date = datetime.now()
+        # 1. Tenta o formato "DD/MM/YYYY, HH:MM:SS"
+        creation_date = datetime.strptime(str(creation_date_str), "%d/%m/%Y, %H:%M:%S")
+    except (ValueError, TypeError):
+        try:
+            # 2. Se falhar, tenta os formatos originais (timestamp ou ISO 8601)
+            if isinstance(creation_date_str, (int, float)):
+                creation_date = datetime.fromtimestamp(creation_date_str)
+            else:
+                date_str_iso = str(creation_date_str)
+                if date_str_iso.endswith('Z'):
+                    date_str_iso = date_str_iso[:-1] + '+00:00'
+                creation_date = datetime.fromisoformat(date_str_iso)
+        except (ValueError, TypeError) as e:
+            print(f"AVISO: Não foi possível interpretar a data de criação '{creation_date_str}' em nenhum formato conhecido. Usando data atual como base. Erro: {e}")
+            # Se todos os formatos falharem, usa a data/hora atual como base.
+            creation_date = datetime.now()
 
     weekday = creation_date.weekday()  # Segunda=0, ..., Domingo=6
     hour = creation_date.hour
@@ -320,5 +325,4 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
-
 
