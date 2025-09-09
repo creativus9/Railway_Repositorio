@@ -4,7 +4,7 @@
 import os
 import re
 import json # Adicionado para processar o JSON da variável de ambiente
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import credentials
@@ -95,6 +95,47 @@ def safe_float(value, default=0.0):
     except (ValueError, TypeError):
         return default
 
+# NOVA FUNÇÃO: Calcula a data de entrega com base nas regras de negócio
+def calculate_fallback_delivery_date(creation_date_str):
+    """
+    Calcula a data de entrega com base na data de criação do pedido,
+    usado como fallback quando 'ship_by_at' não está disponível ou é nulo.
+    """
+    if not creation_date_str:
+        print("AVISO: 'created_at' não fornecido para cálculo de data fallback. Data de entrega ficará vazia.")
+        return ""
+
+    try:
+        # A API da Shopee pode retornar a data como timestamp (int) ou string ISO.
+        if isinstance(creation_date_str, (int, float)):
+            creation_date = datetime.fromtimestamp(creation_date_str)
+        else:
+            # Remove o 'Z' do final e adiciona timezone info para compatibilidade com fromisoformat
+            if creation_date_str.endswith('Z'):
+                creation_date_str = creation_date_str[:-1] + '+00:00'
+            creation_date = datetime.fromisoformat(creation_date_str)
+    except (ValueError, TypeError) as e:
+        print(f"AVISO: Não foi possível interpretar a data de criação '{creation_date_str}'. Usando data atual como base. Erro: {e}")
+        # Se o parsing falhar, usa a data/hora atual como base para o cálculo.
+        creation_date = datetime.now()
+
+    weekday = creation_date.weekday()  # Segunda=0, ..., Domingo=6
+    hour = creation_date.hour
+
+    delivery_date = creation_date.date()
+
+    # Aplica as regras de negócio para calcular a data de entrega
+    if weekday == 0: delivery_date += timedelta(days=1) # Segunda -> Terça
+    elif weekday == 1 and hour >= 11: delivery_date += timedelta(days=1) # Terça -> Quarta
+    elif weekday == 2 and hour >= 11: delivery_date += timedelta(days=1) # Quarta -> Quinta
+    elif weekday == 3 and hour >= 11: delivery_date += timedelta(days=1) # Quinta após 11h -> Sexta
+    elif weekday == 4 and hour >= 11: delivery_date += timedelta(days=3) # Sexta após 11h -> Segunda
+    elif weekday == 5: delivery_date += timedelta(days=2) # Sábado -> Segunda
+    elif weekday == 6: delivery_date += timedelta(days=2) # Domingo -> Terça
+
+    return delivery_date.strftime('%Y-%m-%d')
+
+
 def process_webhook_order(order_data):
     """
     Processa um único item de pedido do JSON do n8n e o mapeia para o formato do sistema.
@@ -133,7 +174,17 @@ def process_webhook_order(order_data):
         
         variacao = variacoesMap.get(grupo7, "Desconhecido")
         situacao = "Fazer arquivo" if sku_final.endswith("F") else "Arquivo Padronizado"
-        ship_by_date_str = order_data.get("ship_by_at", "").split(",")[0]
+        
+        # LÓGICA DE DATA DE ENTREGA: Prioriza 'ship_by_at', senão calcula com base em 'created_at'
+        ship_by_at_raw = order_data.get("ship_by_at")
+        if ship_by_at_raw and str(ship_by_at_raw).strip():
+            # Processa a data primária se ela existir e não for uma string vazia
+            ship_by_date_str = str(ship_by_at_raw).split(",")[0]
+        else:
+            # Se 'ship_by_at' for nulo ou ausente, usa a lógica de fallback
+            print(f"AVISO: 'ship_by_at' ausente ou nulo para o pedido '{order_id}'. Calculando data de entrega alternativa.")
+            creation_date = order_data.get("created_at")
+            ship_by_date_str = calculate_fallback_delivery_date(creation_date)
 
         return {
             'id': order_id, 'situacao': situacao, 'material': cor, 'qntPlacas': placas,
@@ -257,5 +308,4 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
-
 
