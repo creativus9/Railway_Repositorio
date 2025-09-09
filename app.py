@@ -252,7 +252,7 @@ def webhook_shopee_new_order():
 
     orders_data = data if isinstance(data, list) else [data]
 
-    success_count = 0
+    successful_orders_info = []
     delete_count = 0
     errors = []
     
@@ -271,23 +271,35 @@ def webhook_shopee_new_order():
             processed_order = process_webhook_order(order_item)
             if processed_order:
                 if save_order_to_firestore(processed_order):
-                    success_count += 1
+                    successful_orders_info.append({
+                        'id': processed_order.get('id'),
+                        'dataEntrega': processed_order.get('dataEntrega', 'N/A')
+                    })
                 else:
                     errors.append(f"Falha ao salvar no banco de dados o pedido: {order_id}")
             else:
                 errors.append(f"Falha ao processar o item de pedido: {order_id}")
 
-    # Monta uma mensagem de resposta mais clara
+    # Monta uma mensagem de resposta mais clara e informativa
     message_parts = []
-    if success_count > 0:
-        message_parts.append(f"{success_count} pedido(s) salvo(s)/atualizado(s)")
+    if successful_orders_info:
+        # Se for apenas um pedido, a mensagem será mais detalhada.
+        if len(successful_orders_info) == 1:
+            order_info = successful_orders_info[0]
+            message_parts.append(f"1 pedido salvo/atualizado com sucesso. Data de entrega: {order_info['dataEntrega']}")
+        # Se for mais de um, a mensagem é um resumo.
+        else:
+            message_parts.append(f"{len(successful_orders_info)} pedido(s) salvo(s)/atualizado(s) com sucesso")
+
     if delete_count > 0:
         message_parts.append(f"{delete_count} pedido(s) excluído(s) por cancelamento")
     
     if not message_parts and not errors:
         final_message = "Nenhuma ação realizada. Verifique o payload enviado."
     else:
-        final_message = ", ".join(message_parts) + " com sucesso."
+        # Junta as partes da mensagem com um ponto e espaço para clareza.
+        final_message = ". ".join(message_parts) + "."
+        final_message = final_message.replace("..", ".") # Garante que não haja pontos duplos
 
     if not errors:
         return jsonify(message=final_message), 200
@@ -308,4 +320,5 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
+
 
