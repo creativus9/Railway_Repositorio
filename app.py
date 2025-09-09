@@ -138,7 +138,7 @@ def calculate_fallback_delivery_date(creation_date_str):
     elif weekday == 5: delivery_date += timedelta(days=2) # Sábado -> Segunda
     elif weekday == 6: delivery_date += timedelta(days=2) # Domingo -> Terça
 
-    return delivery_date.strftime('%Y-%m-%d')
+    return delivery_date.strftime('%d/%m/%Y')
 
 
 def process_webhook_order(order_data):
@@ -180,23 +180,32 @@ def process_webhook_order(order_data):
         variacao = variacoesMap.get(grupo7, "Desconhecido")
         situacao = "Fazer arquivo" if sku_final.endswith("F") else "Arquivo Padronizado"
         
-        # LÓGICA DE DATA DE ENTREGA: Prioriza 'ship_by_at', senão calcula com base em 'created_at'
+        # LÓGICA DE DATA DE ENTREGA: Prioriza 'ship_by_at' e formata para DD/MM/YYYY
         ship_by_at_raw = order_data.get("ship_by_at")
+        data_entrega_final = "" # Variável para armazenar a data no formato final
+
         if ship_by_at_raw and str(ship_by_at_raw).strip():
-            # Processa a data primária se ela existir e não for uma string vazia
-            ship_by_date_str = str(ship_by_at_raw).split(",")[0]
+            # Processa a data primária se ela existir
+            date_str_part = str(ship_by_at_raw).split(",")[0].strip()
+            try:
+                # Tenta converter de YYYY-MM-DD para DD/MM/YYYY
+                dt_obj = datetime.strptime(date_str_part, '%Y-%m-%d')
+                data_entrega_final = dt_obj.strftime('%d/%m/%Y')
+            except ValueError:
+                # Se não conseguir converter, assume que o formato já é o desejado (ex: DD/MM/YYYY)
+                data_entrega_final = date_str_part
         else:
-            # Se 'ship_by_at' for nulo ou ausente, usa a lógica de fallback
+            # Se 'ship_by_at' for nulo/ausente, usa a lógica de fallback
             print(f"AVISO: 'ship_by_at' ausente ou nulo para o pedido '{order_id}'. Calculando data de entrega alternativa.")
             creation_date = order_data.get("created_at")
-            ship_by_date_str = calculate_fallback_delivery_date(creation_date)
+            data_entrega_final = calculate_fallback_delivery_date(creation_date) # Já retorna em DD/MM/YYYY
 
         return {
             'id': order_id, 'situacao': situacao, 'material': cor, 'qntPlacas': placas,
             'formato': formato, 'tamanho': tamanho_formatado, 'furo': furo, 'planoCorte': '',
             'skuPlanoCorte': f'{"-".join(partes_mapeamento[0:5])}.dxf' if "XXXX" not in sku_final else "N/A",
             'tipoArte': variacao, 'sku': sku_final, 'motivoRetrabalho': '',
-            'dataEntrega': ship_by_date_str, 'ecommerce': 'Shopee', 'contaEcommerce': 'Conta Padrão',
+            'dataEntrega': data_entrega_final, 'ecommerce': 'Shopee', 'contaEcommerce': 'Conta Padrão',
             'dataPedidoFeito': order_data.get("created_at"), 'cliente': order_data.get("cliente"),
             # ATUALIZAÇÃO: Usa a função safe_float para garantir que os valores são numéricos
             'valorTotal': safe_float(order_data.get("valor_total_pedido")),
@@ -325,4 +334,3 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
-
