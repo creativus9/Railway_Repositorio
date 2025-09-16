@@ -146,7 +146,10 @@ def process_webhook_order(order_data):
     Processa um único item de pedido do JSON do n8n e o mapeia para o formato do sistema.
     """
     try:
-        sku_original = order_data.get("item_sku", "")
+        sku_bruto = order_data.get("item_sku", "")
+        # NOVO: Limpa o SKU para remover informações extras como "(2)"
+        sku_original = sku_bruto.split(" ")[0]
+        
         quantidade_original = int(order_data.get("quantidade", 1))
         order_id = order_data.get("pedido", "ID_DESCONHECIDO")
         
@@ -334,3 +337,4 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
+
