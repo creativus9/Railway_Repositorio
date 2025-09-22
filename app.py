@@ -88,7 +88,7 @@ variacoesMap = {
     "1016P": "Mãe + Coração", "1017P": "Seja Luz", "1018P": "Bíblia Sagrada",
     "1019P": "Feliz Natal", "0000P": "Sem gravação", "0000F": "Sem gravação",
     "1020P": "Boas Festas", "1021P": "Floco de Neve", "1022P": "Com Amor",
-    "1023P: "Estrela", "1024P": "Coroa", "1025P": "Borboleta", "1026P": "Gatinho",
+    "1023P": "Estrela", "1024P": "Coroa", "1025P": "Borboleta", "1026P": "Gatinho",
     "1027P": "Patinha", "1028P": "Ursinho", "1029P": "Jesus", "1030P": "Ossinho"
 }
 
