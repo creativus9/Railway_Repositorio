@@ -52,7 +52,7 @@ except Exception as e:
 rendimentoPlacas = {
     "2020": 50, "3015": 50, "4020": 25, "1515": 55, "3030": 24,
     "3010": 70, "5151": 10, "3013": 50, "4010": 50, "4015": 35,
-    "2508": 105, "3510": 60, "1414": 90, "3918": 30
+    "2508": 105, "3510": 60, "1414": 90, "3918": 30, "1525": 55
 }
 coresMap = {
     "DOU": "Dourado", "PRA": "Prata", "ROS": "Rose", "CRU": "Cru",
@@ -65,7 +65,9 @@ formatoMap = {
     "URSI": "Ursinho", "PING": "Pingente", "BORB": "Borboleta",
     "BO3D": "Borboleta 3D", "PROT": "Passante retangular oval no topo",
     "FLOP": "Flor Passante", "APCA": "Aplique Casamento", "MIPA": "Mini Palito",
-    "MASC": "Máscara Carnaval", "ARVC": "Arvórezinha"
+    "MASC": "Máscara Carnaval", "ARVC": "Arvórezinha", "KIN4": "Árvore + Estrela + Medalha NATAL",
+    "KIN1": "Árvore + Estrela + Bola NATAL", "KIN2": "Árvore + Estrela + Coração", "KIN3": "Árvore + Estrela NATAL",
+    "KIN5": "Coração + Estrela"
 }
 furosMap = {
     "1FS": "1 furo Superior", "1FH": "1 Furo Lateral", "2FH": "2 Furos Lateral",
@@ -84,7 +86,10 @@ variacoesMap = {
     "1009P": "Feito com amor", "1010P": "Feliz Páscoa", "1011P": "Gratidão modelo 2",
     "1012P": "Fé", "1013P": "Coração", "1014P": "Fé + Cruz", "1015P": "Ele Vive + Cruz",
     "1016P": "Mãe + Coração", "1017P": "Seja Luz", "1018P": "Bíblia Sagrada",
-    "1019P": "Feliz Natal", "0000P": "Sem gravação", "0000F": "Sem gravação"
+    "1019P": "Feliz Natal", "0000P": "Sem gravação", "0000F": "Sem gravação",
+    "1020P": "Boas Festas", "1021P": "Floco de Neve", "1022P": "Com Amor",
+    "1023P: "Estrela", "1024P": "Coroa", "1025P": "Borboleta", "1026P": "Gatinho",
+    "1027P": "Patinha", "1028P": "Ursinho", "1029P": "Jesus", "1030P": "Ossinho"
 }
 
 # NOVA FUNÇÃO: Converte um valor para float de forma segura
