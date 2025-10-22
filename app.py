@@ -48,6 +48,14 @@ except Exception as e:
     db = None
 
 # --- MAPEAMENTOS INTERNOS ---
+
+# NOVO: Mapeamento de Shop ID para Nome da Loja
+shopIdMap = {
+    334593801: "Creativus Fábrica",
+    1300792309: "Rei dos Apliques"
+    # Adicione outros IDs e nomes de loja aqui conforme necessário
+}
+
 # Conforme discutido, os mapeamentos estão diretamente no código para agilidade.
 rendimentoPlacas = {
     "2020": 50, "3015": 50, "4020": 25, "1515": 55, "3030": 24,
@@ -145,6 +153,40 @@ def calculate_fallback_delivery_date(creation_date_str):
 
     return delivery_date.strftime('%d/%m/%Y')
 
+# NOVA FUNÇÃO: Processa a atualização de Shop ID (Conta E-commerce)
+def process_shop_id_update(order_data):
+    """
+    Processa um payload focado em atualizar a conta do e-commerce (shop_id).
+    """
+    try:
+        order_id = order_data.get("pedido")
+        shop_id = order_data.get("shop_id")
+
+        if not order_id:
+            print("ERRO: Recebido payload de shop_id sem 'pedido'.")
+            return None
+        
+        # Converte o shop_id para inteiro para bater com o dicionário
+        try:
+            shop_id_int = int(shop_id)
+        except (ValueError, TypeError):
+            print(f"AVISO: Shop ID '{shop_id}' inválido para o pedido '{order_id}'.")
+            return None
+
+        # Busca o nome da loja no mapeamento
+        nome_loja = shopIdMap.get(shop_id_int, "Loja Desconhecida")
+        
+        if nome_loja == "Loja Desconhecida":
+             print(f"AVISO: Shop ID '{shop_id_int}' para o pedido '{order_id}' não está no mapeamento 'shopIdMap'.")
+
+        # Retorna o dicionário parcial para ser mesclado (merge=True) no Firestore
+        return {
+            'id': order_id,
+            'contaEcommerce': nome_loja
+        }
+    except Exception as e:
+        print(f"ERRO ao processar atualização de shop_id para o pedido '{order_data.get('pedido')}': {e}")
+        return None
 
 def process_webhook_order(order_data):
     """
@@ -213,7 +255,8 @@ def process_webhook_order(order_data):
             'formato': formato, 'tamanho': tamanho_formatado, 'furo': furo, 'planoCorte': '',
             'skuPlanoCorte': f'{"-".join(partes_mapeamento[0:5])}.dxf' if "XXXX" not in sku_final else "N/A",
             'tipoArte': variacao, 'sku': sku_final, 'motivoRetrabalho': '',
-            'dataEntrega': data_entrega_final, 'ecommerce': 'Shopee', 'contaEcommerce': 'Conta Padrão',
+            'dataEntrega': data_entrega_final, 'ecommerce': 'Shopee', 
+            # 'contaEcommerce': 'Conta Padrão', # REMOVIDO: Agora será definido pelo payload do shop_id
             'dataPedidoFeito': order_data.get("created_at"), 'cliente': order_data.get("cliente"),
             # ATUALIZAÇÃO: Usa a função safe_float para garantir que os valores são numéricos
             'valorTotal': safe_float(order_data.get("valor_total_pedido")),
@@ -233,6 +276,8 @@ def save_order_to_firestore(order_data):
     try:
         order_id = order_data.get('id')
         doc_ref = db.collection('pedidos_ativos').document(str(order_id))
+        # A MÁGICA ACONTECE AQUI: merge=True garante que os dados sejam mesclados,
+        # não importa qual payload (itens ou shop_id) chegue primeiro.
         doc_ref.set(order_data, merge=True)
         print(f"Pedido '{order_id}' salvo/atualizado com sucesso no Firestore.")
         return True
@@ -274,22 +319,45 @@ def webhook_shopee_new_order():
 
     orders_data = data if isinstance(data, list) else [data]
 
+    # ATUALIZAÇÃO: Contadores separados para diferentes ações
     successful_orders_info = []
+    successful_shop_id_updates = 0 # NOVO
     delete_count = 0
     errors = []
     
     for order_item in orders_data:
+        # Extrai as chaves principais para decisão
         status = order_item.get("status")
-        order_id = order_item.get("pedido", "ID_DESCONHECIDO")
+        order_id = order_item.get("pedido")
+        shop_id = order_item.get("shop_id")
+        item_sku = order_item.get("item_sku") # Usado para identificar payload de item
 
-        # LÓGICA DE DECISÃO: Se o status for "CANCELLED", exclui o pedido.
+        # --- LÓGICA DE DECISÃO ATUALIZADA ---
+
+        # 1. Se o status for "CANCELLED", exclui o pedido.
         if status == "CANCELLED":
+            if not order_id:
+                errors.append(f"Recebido pedido de cancelamento sem 'pedido'.")
+                continue
+            
             if delete_order_from_firestore(order_id):
                 delete_count += 1
             else:
                 errors.append(f"Falha ao excluir o pedido cancelado: {order_id}")
-        # Caso contrário, processa e salva/atualiza como antes.
-        else:
+
+        # 2. Se tiver 'shop_id' E 'pedido', é uma atualização de loja.
+        elif shop_id and order_id:
+            processed_data = process_shop_id_update(order_item)
+            if processed_data:
+                if save_order_to_firestore(processed_data):
+                    successful_shop_id_updates += 1
+                else:
+                    errors.append(f"Falha ao salvar shop_id no banco de dados: {order_id}")
+            else:
+                 errors.append(f"Falha ao processar atualização de shop_id: {order_id}")
+
+        # 3. Se tiver 'item_sku' E 'pedido', é um payload de item de pedido.
+        elif item_sku and order_id:
             processed_order = process_webhook_order(order_item)
             if processed_order:
                 if save_order_to_firestore(processed_order):
@@ -298,9 +366,17 @@ def webhook_shopee_new_order():
                         'dataEntrega': processed_order.get('dataEntrega', 'N/A')
                     })
                 else:
-                    errors.append(f"Falha ao salvar no banco de dados o pedido: {order_id}")
+                    errors.append(f"Falha ao salvar item de pedido no banco de dados: {order_id}")
             else:
                 errors.append(f"Falha ao processar o item de pedido: {order_id}")
+        
+        # 4. Se não for nenhum dos acima, é um payload desconhecido.
+        else:
+            # Tenta pegar um ID, mesmo que parcial, para o log de erro
+            id_log = order_id or order_item.get("id", "ID_DESCONHECIDO")
+            print(f"AVISO: Payload recebido para '{id_log}' não corresponde a nenhum formato esperado (Cancelamento, Item de Pedido ou Shop ID). Payload: {order_item}")
+            errors.append(f"Payload desconhecido ou incompleto para: {id_log}")
+
 
     # Monta uma mensagem de resposta mais clara e informativa
     message_parts = []
@@ -308,10 +384,14 @@ def webhook_shopee_new_order():
         # Se for apenas um pedido, a mensagem será mais detalhada.
         if len(successful_orders_info) == 1:
             order_info = successful_orders_info[0]
-            message_parts.append(f"1 pedido salvo/atualizado com sucesso. Data de entrega: {order_info['dataEntrega']}")
+            message_parts.append(f"1 item de pedido salvo/atualizado com sucesso. Data de entrega: {order_info['dataEntrega']}")
         # Se for mais de um, a mensagem é um resumo.
         else:
-            message_parts.append(f"{len(successful_orders_info)} pedido(s) salvo(s)/atualizado(s) com sucesso")
+            message_parts.append(f"{len(successful_orders_info)} item(ns) de pedido salvo(s)/atualizado(s) com sucesso")
+
+    # NOVO: Adiciona contagem de atualizações de loja
+    if successful_shop_id_updates > 0:
+        message_parts.append(f"{successful_shop_id_updates} pedido(s) atualizado(s) com a conta do e-commerce")
 
     if delete_count > 0:
         message_parts.append(f"{delete_count} pedido(s) excluído(s) por cancelamento")
