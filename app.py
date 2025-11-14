@@ -188,6 +188,33 @@ def process_shop_id_update(order_data):
         print(f"ERRO ao processar atualização de shop_id para o pedido '{order_data.get('pedido')}': {e}")
         return None
 
+# NOVA FUNÇÃO: Processa a atualização de User Cliente
+def process_user_cliente_update(order_data):
+    """
+    Processa um payload focado em atualizar o user_cliente (nome de usuário Shopee).
+    """
+    try:
+        # O payload do n8n pode vir com 'pedido' (dos itens) ou 'order_sn' (do novo webhook)
+        order_id = order_data.get("pedido") or order_data.get("order_sn")
+        user_cliente = order_data.get("user_cliente")
+
+        if not order_id:
+            print("ERRO: Recebido payload de user_cliente sem 'pedido' or 'order_sn'.")
+            return None
+        
+        if not user_cliente:
+            print(f"AVISO: Recebido payload de user_cliente vazio para o pedido '{order_id}'.")
+            user_cliente = "" # Salva como vazio
+
+        # Padrão: 'userCliente' (camelCase) para consistência com o frontend (PedidoDetalhes.jsx)
+        return {
+            'id': order_id,
+            'userCliente': user_cliente
+        }
+    except Exception as e:
+        print(f"ERRO ao processar atualização de user_cliente para o pedido '{order_data.get('pedido') or order_data.get('order_sn')}': {e}")
+        return None
+
 def process_webhook_order(order_data):
     """
     Processa um único item de pedido do JSON do n8n e o mapeia para o formato do sistema.
@@ -322,15 +349,18 @@ def webhook_shopee_new_order():
     # ATUALIZAÇÃO: Contadores separados para diferentes ações
     successful_orders_info = []
     successful_shop_id_updates = 0 # NOVO
+    successful_user_cliente_updates = 0 # NOVO
     delete_count = 0
     errors = []
     
     for order_item in orders_data:
         # Extrai as chaves principais para decisão
         status = order_item.get("status")
-        order_id = order_item.get("pedido")
+        # ATUALIZADO: Pega o ID de 'pedido' (principal) ou 'order_sn' (secundário, vindo do novo webhook)
+        order_id = order_item.get("pedido") or order_item.get("order_sn") 
         shop_id = order_item.get("shop_id")
         item_sku = order_item.get("item_sku") # Usado para identificar payload de item
+        user_cliente = order_item.get("user_cliente") # NOVO
 
         # --- LÓGICA DE DECISÃO ATUALIZADA ---
 
@@ -356,7 +386,18 @@ def webhook_shopee_new_order():
             else:
                  errors.append(f"Falha ao processar atualização de shop_id: {order_id}")
 
-        # 3. Se tiver 'item_sku' E 'pedido', é um payload de item de pedido.
+        # 3. NOVO: Se tiver 'user_cliente' E 'order_sn'/'pedido', é uma atualização de usuário.
+        elif user_cliente and order_id:
+            processed_data = process_user_cliente_update(order_item)
+            if processed_data:
+                if save_order_to_firestore(processed_data):
+                    successful_user_cliente_updates += 1
+                else:
+                    errors.append(f"Falha ao salvar user_cliente no banco de dados: {order_id}")
+            else:
+                 errors.append(f"Falha ao processar atualização de user_cliente: {order_id}")
+
+        # 4. Se tiver 'item_sku' E 'pedido', é um payload de item de pedido.
         elif item_sku and order_id:
             processed_order = process_webhook_order(order_item)
             if processed_order:
@@ -393,6 +434,10 @@ def webhook_shopee_new_order():
     if successful_shop_id_updates > 0:
         message_parts.append(f"{successful_shop_id_updates} pedido(s) atualizado(s) com a conta do e-commerce")
 
+    # NOVO: Adiciona contagem de atualizações de user_cliente
+    if successful_user_cliente_updates > 0:
+        message_parts.append(f"{successful_user_cliente_updates} pedido(s) atualizado(s) com o usuário do cliente")
+
     if delete_count > 0:
         message_parts.append(f"{delete_count} pedido(s) excluído(s) por cancelamento")
     
@@ -422,4 +467,3 @@ if __name__ == '__main__':
     # A porta é definida pelo Railway através da variável de ambiente PORT
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
-
