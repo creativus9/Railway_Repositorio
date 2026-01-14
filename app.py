@@ -60,7 +60,7 @@ shopIdMap = {
 rendimentoPlacas = {
     "2020": 50, "3015": 50, "4020": 25, "1515": 55, "3030": 24,
     "3010": 70, "5151": 10, "3013": 50, "4010": 50, "4015": 35,
-    "2508": 105, "3510": 60, "1414": 90, "3918": 30, "1525": 55
+    "2508": 105, "3510": 60, "1414": 90, "1313": 110, "3918": 30, "1525": 55
 }
 coresMap = {
     "DOU": "Dourado", "PRA": "Prata", "ROS": "Rose", "CRU": "Cru",
@@ -74,7 +74,7 @@ formatoMap = {
     "BO3D": "Borboleta 3D", "PROT": "Passante retangular oval no topo",
     "FLOP": "Flor Passante", "APCA": "Aplique Casamento", "MIPA": "Mini Palito",
     "MASC": "Máscara Carnaval", "ARVC": "Arvórezinha", "KIN4": "Árvore + Estrela + Medalha NATAL",
-    "KIN1": "Árvore + Estrela + Bola NATAL", "KIN2": "Árvore + Estrela + Coração", "KIN3": "Árvore + Estrela NATAL",
+    "KIN1": "Árvore + Estrela + Bola NATAL", "KIN2": "Árvore + Estrela + Coração", "FLOR": "Florzinha", "CONC": "Concha", "KIN3": "Árvore + Estrela NATAL",
     "KIN5": "Coração + Estrela"
 }
 furosMap = {
