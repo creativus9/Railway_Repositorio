@@ -1,5 +1,5 @@
 # app.py - Microserviço para rodar no Railway
-# Responsável por receber pedidos da Shopee via n8n, processá-los e salvar no Firestore.
+# Responsável por receber pedidos da Shopee via n8n, processá-los e salvar no Firestore
 
 import os
 import re
