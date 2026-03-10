@@ -69,7 +69,7 @@ coresMap = {
 formatoMap = {
     "REDO": "Redondo", "AVIA": "Aviãozinho", "CORA": "Coração",
     "PLAC": "Plaquinha", "MOLD": "Moldurinha", "NUVM": "Nuvenzinha",
-    "NUVE": "Nuvem", "PLAO": "Plaquinha Oval", "PLAR": "Plaquinha com bolinha redonda no começo",
+    "NUVE": "Nuvem", "PLAO": "Plaquinha Oval", "LAPI": "Lápis", "PLAR": "Plaquinha com bolinha redonda no começo",
     "URSI": "Ursinho", "PING": "Pingente", "BORB": "Borboleta",
     "BO3D": "Borboleta 3D", "PROT": "Passante retangular oval no topo",
     "FLOP": "Flor Passante", "APCA": "Aplique Casamento", "MIPA": "Mini Palito",
