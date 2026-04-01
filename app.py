@@ -228,22 +228,60 @@ def process_webhook_order(order_data):
         order_id = order_data.get("pedido", "ID_DESCONHECIDO")
         
         partes = sku_original.split("-")
+        
+        # =====================================================================
+        # ATENÇÃO: INÍCIO DA NOVA LÓGICA DE DETECÇÃO DO SUFIXO "PLA"
+        # =====================================================================
+        placas_pre_calculadas = None # Inicializa como nulo (cenário padrão)
+        
+        # Verifica se o SKU tem 8 partes e a última começa com "PLA"
+        if len(partes) == 8 and partes[7].startswith("PLA"):
+            try:
+                # Extrai apenas o número (ex: "PLA01" vira 1)
+                qtd_placa_sku = int(partes[7].replace("PLA", ""))
+                # Multiplica pela quantidade de pacotes comprados na Shopee
+                placas_pre_calculadas = qtd_placa_sku * quantidade_original
+            except ValueError:
+                print(f"AVISO: Não foi possível processar a quantidade em '{partes[7]}'. Usando cálculo padrão.")
+                placas_pre_calculadas = None
+            
+            # Remove o 8º grupo do array para não atrapalhar o salvamento nem a lógica antiga
+            partes.pop()
+        # =====================================================================
+        # ATENÇÃO: FIM DA NOVA LÓGICA DE DETECÇÃO DO SUFIXO "PLA"
+        # =====================================================================
+
         if len(partes) < 7 or not partes[5].isdigit():
             print(f"AVISO: SKU '{sku_original}' para o pedido '{order_id}' é inválido. Usando SKU padrão.")
-            sku_original = "XXXX-XXXX-XXX-XX-XXX-XXX-XXXXF"
-            partes = sku_original.split("-")
+            # Se for inválido, forçamos um padrão. Se tinha PLA, a variável partes.pop() garantiu que 
+            # ele também não entre aqui indevidamente se tiver faltado algo no meio do SKU.
+            sku_padrao = "XXXX-XXXX-XXX-XX-XXX-XXX-XXXXF"
+            partes = sku_padrao.split("-")
 
         qtd_sku_in_part = int(partes[5]) if partes[5].isdigit() else 1
         nova_qtd = qtd_sku_in_part * quantidade_original
         partes[5] = str(nova_qtd).zfill(3)
+        
+        # Como removemos o PLA (caso existisse) usando o pop(), o sku_final será montado limpo!
         sku_final = "-".join(partes)
 
         partes_mapeamento = sku_final.split("-")
         grupo1, grupo2, grupo3, _, grupo5, _, grupo7 = partes_mapeamento
         
-        placas = rendimentoPlacas.get(grupo2, 0)
-        if placas != 0:
-            placas = (nova_qtd + placas - 1) // placas
+        # =====================================================================
+        # ATENÇÃO: INÍCIO DA ATUALIZAÇÃO DO CÁLCULO DE PLACAS
+        # =====================================================================
+        # Se a variável NÃO for nula, significa que o SKU tinha PLA e já fizemos a conta.
+        if placas_pre_calculadas is not None:
+            placas = placas_pre_calculadas
+        else:
+            # Lógica antiga: Não tinha PLA, então procura no dicionário e calcula
+            placas = rendimentoPlacas.get(grupo2, 0)
+            if placas != 0:
+                placas = (nova_qtd + placas - 1) // placas
+        # =====================================================================
+        # ATENÇÃO: FIM DA ATUALIZAÇÃO DO CÁLCULO DE PLACAS
+        # =====================================================================
 
         cor = coresMap.get(grupo5, "Desconhecido")
         formato = formatoMap.get(grupo1, "Desconhecido")
