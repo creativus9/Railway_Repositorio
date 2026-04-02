@@ -116,14 +116,15 @@ def get_dynamic_mappings():
                 continue
                 
             code = str(code).upper()
+            m_type_upper = str(m_type).upper()
             
-            if m_type == "COR":
+            if m_type_upper == "COR":
                 dyn_cores[code] = translation
-            elif m_type == "FORMATO":
+            elif m_type_upper == "FORMATO":
                 dyn_formatos[code] = translation
-            elif m_type == "FURO":
+            elif m_type_upper == "FURO":
                 dyn_furos[code] = translation
-            elif m_type == "VARIACAO":
+            elif "VARIACAO" in m_type_upper:
                 dyn_variacoes[code] = translation
                 
     except Exception as e:
