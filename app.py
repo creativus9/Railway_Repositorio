@@ -286,14 +286,40 @@ def process_webhook_order(order_data, dyn_cores, dyn_formatos, dyn_furos, dyn_va
         return None
 
 def save_order_to_firestore(order_data):
-    """Salva no banco de PEDIDOS."""
+    """Salva no banco de PEDIDOS preservando dados já existentes."""
     if not db: return False
     try:
         order_id = order_data.get('id')
         doc_ref = db.collection('pedidos_ativos').document(str(order_id))
-        doc_ref.set(order_data, merge=True)
+        
+        doc = doc_ref.get()
+        if doc.exists:
+            existing_data = doc.to_dict() or {}
+            data_to_update = {}
+            
+            for key, new_value in order_data.items():
+                existing_value = existing_data.get(key)
+                
+                # Considera o campo do banco "vazio" se for None ou uma string em branco.
+                # Se já tiver qualquer dado válido lá (como "Fazer arquivo", "0", False, etc), ele não entra no update.
+                is_empty = existing_value is None or (isinstance(existing_value, str) and str(existing_value).strip() == "")
+                
+                if is_empty:
+                    data_to_update[key] = new_value
+            
+            # Se não sobrou nenhum dado vazio para preencher (ou seja, tudo já estava preenchido),
+            # nós simplesmente encerramos com sucesso sem tocar no banco.
+            if not data_to_update:
+                return True
+                
+            doc_ref.set(data_to_update, merge=True)
+        else:
+            # Se o pedido é 100% novo (não existe no banco), salva tudo normalmente
+            doc_ref.set(order_data)
+            
         return True
-    except Exception:
+    except Exception as e:
+        print(f"ERRO ao salvar pedido no Firestore: {e}")
         return False
 
 def delete_order_from_firestore(order_id):
