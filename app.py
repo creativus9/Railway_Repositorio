@@ -200,6 +200,18 @@ def process_user_cliente_update(order_data):
     except Exception:
         return None
 
+def process_tracking_update(order_data):
+    """Processa a atualização do código de rastreamento."""
+    try:
+        order_id = order_data.get("pedido") or order_data.get("order_sn")
+        tracking_no = order_data.get("tracking_no", "")
+
+        if not order_id or not tracking_no: return None
+        # Retorna o dicionário usando a exata chave que o seu React lê: idRastreamento
+        return {'id': order_id, 'idRastreamento': tracking_no}
+    except Exception:
+        return None
+
 # ATENÇÃO: Os dicionários dinâmicos agora são passados como parâmetros!
 def process_webhook_order(order_data, dyn_cores, dyn_formatos, dyn_furos, dyn_variacoes):
     """Processa um único item e mapeia com os dados dinâmicos."""
@@ -353,6 +365,7 @@ def webhook_shopee_new_order():
     successful_orders_info = []
     successful_shop_id_updates = 0
     successful_user_cliente_updates = 0
+    successful_tracking_updates = 0  # <- Contador novo
     delete_count = 0
     errors = []
     
@@ -362,6 +375,7 @@ def webhook_shopee_new_order():
         shop_id = order_item.get("shop_id")
         item_sku = order_item.get("item_sku")
         user_cliente = order_item.get("user_cliente")
+        tracking_no = order_item.get("tracking_no") # <- Extraindo o tracking do payload
 
         if status == "CANCELLED":
             if not order_id:
@@ -369,6 +383,13 @@ def webhook_shopee_new_order():
                 continue
             if delete_order_from_firestore(order_id): delete_count += 1
             else: errors.append(f"Falha ao excluir o pedido cancelado: {order_id}")
+
+        elif tracking_no and order_id: # <- Regra NOVA para pegar o Rastreio
+            processed_data = process_tracking_update(order_item)
+            if processed_data:
+                if save_order_to_firestore(processed_data): successful_tracking_updates += 1
+                else: errors.append(f"Falha ao salvar rastreio no banco de dados: {order_id}")
+            else: errors.append(f"Falha ao processar atualização de rastreio: {order_id}")
 
         elif shop_id and order_id:
             processed_data = process_shop_id_update(order_item)
@@ -405,6 +426,7 @@ def webhook_shopee_new_order():
 
     if successful_shop_id_updates > 0: message_parts.append(f"{successful_shop_id_updates} pedido(s) atualizado(s) com a conta")
     if successful_user_cliente_updates > 0: message_parts.append(f"{successful_user_cliente_updates} pedido(s) atualizado(s) com o usuário")
+    if successful_tracking_updates > 0: message_parts.append(f"{successful_tracking_updates} pedido(s) atualizado(s) com código de rastreio") # <- Nova mensagem
     if delete_count > 0: message_parts.append(f"{delete_count} pedido(s) excluído(s)")
     
     if not message_parts and not errors: final_message = "Nenhuma ação realizada."
